@@ -42,8 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author Peter Abeles
@@ -57,11 +56,8 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		}
 	}
 
-	/**
-	 * Generate an image with a single target. See if it finds that target in the image
-	 */
-	@Test
-	void singleFrame_Easy() {
+	/** Generate an image with a single target. See if it finds that target in the image */
+	@Test void singleFrame_Easy() {
 		int targetID = 2;
 		List<Point2D_F64> dots = documents.get(targetID);
 
@@ -69,6 +65,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		for( var doc : documents ) {
 			tracker.llahOps.createDocument(doc);
 		}
+		tracker.updatedLlahDocuments();
 
 		tracker.process(dots);
 
@@ -81,8 +78,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 	/**
 	 * Give it an image sequence and see if it can track the target. Only translation
 	 */
-	@Test
-	void sequence_Easy() {
+	@Test void sequence_Easy() {
 		int targetID = 2;
 		List<Point2D_F64> dots = documents.get(targetID);
 
@@ -90,6 +86,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		for( var doc : documents ) {
 			tracker.llahOps.createDocument(doc);
 		}
+		tracker.updatedLlahDocuments();
 
 		var prevMean = new Point2D_F64();
 		var currMean = new Point2D_F64();
@@ -118,12 +115,12 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		}
 	}
 
-	@Test
-	void performDetection() {
+	@Test void performTracking() {
 		UchiyaMarkerTracker tracker = createTracker();
 		for( var doc : documents ) {
 			tracker.llahOps.createDocument(doc);
 		}
+		tracker.updatedLlahDocuments();
 
 		// Add all the definitions into a single set of detections by adding a huge offset between them
 		List<Point2D_F64> observations = new ArrayList<>();
@@ -136,7 +133,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 			}
 		}
 
-		tracker.performDetection(observations);
+		tracker.performTracking(observations);
 
 		assertEquals(documents.size()-2, tracker.currentTracks.size);
 
@@ -154,8 +151,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		}
 	}
 
-	@Test
-	void fitHomography() {
+	@Test void fitHomography() {
 		var doc_to_image = new Homography2D_F64(2,0,10,0,1.5,-5.6,0,0,1);
 
 		List<Point2D_F64> landmarks = UtilPoint2D_F64.random(-1,1,10,rand);

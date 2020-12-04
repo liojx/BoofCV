@@ -27,8 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Peter Abeles
  */
 class TestLlahHashTable extends BoofStandardJUnit {
-	@Test
-	void add_lookup() {
+	@Test void add_lookup() {
 		var a = new LlahFeature(5);
 		var b = new LlahFeature(5);
 		var c = new LlahFeature(5);
@@ -62,5 +61,9 @@ class TestLlahHashTable extends BoofStandardJUnit {
 		assertSame(a, alg.lookup(1));
 		assertSame(d, alg.lookup(10));
 		assertNull(d.next);
+	}
+
+	@Test void remove() {
+		fail("Implement");
 	}
 }

@@ -35,6 +35,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static boofcv.misc.BoofMiscOps.checkTrue;
+
 /**
  * Locally Likely Arrangement Hashing (LLAH) [1] computes a descriptor for a landmark based on the local geometry of
  * neighboring landmarks on the image plane. Originally proposed for document retrieval. These features are either
@@ -60,23 +62,23 @@ import java.util.stream.IntStream;
  */
 public class LlahOperations {
 
-	// Number of nearest neighbors it will search for
+	/** Number of nearest neighbors it will search for */
 	@Getter final int numberOfNeighborsN;
-	// Size of combination set from the set of neighbors
+	/** Size of combination set from the set of neighbors */
 	@Getter final int sizeOfCombinationM;
-	// Number of invariants in the feature. Determined by the type and M
+	/** Number of invariants in the feature. Determined by the type and M */
 	@Getter final int numberOfInvariants;
 
 	final List<Point2D_F64> setM = new ArrayList<>();
 	final List<Point2D_F64> permuteM = new ArrayList<>();
 
-	// Computes the hash value for each feature
+	/** Computes the hash value for each feature */
 	@Getter LlahHasher hasher;
-	// Used to look up features/documents
+	/** Used to look up features/documents */
 	@Getter final LlahHashTable hashTable = new LlahHashTable();
 
-	// List of all documents
-	@Getter final DogArray<LlahDocument> documents = new DogArray<>(LlahDocument::new);
+	/** List of all documents */
+	@Getter final DogArray<LlahDocument> documents = new DogArray<>(LlahDocument::new, LlahDocument::reset);
 
 	//========================== Internal working variables
 	final NearestNeighbor<Point2D_F64> nn = FactoryNearestNeighbor.kdtree(new KdTreePoint2D_F64());
@@ -88,7 +90,11 @@ public class LlahOperations {
 	private final DogArray<FoundDocument> resultsStorage = new DogArray<>(FoundDocument::new);
 	private final TIntObjectHashMap<FoundDocument> foundMap = new TIntObjectHashMap<>();
 
+	// storage for all the features
 	private final DogArray<LlahFeature> allFeatures;
+
+	// How many features in 'allFeatures' were there when this document was added. Used when removing documents
+	private final DogArray_I32 featureCounts = new DogArray_I32();
 
 	// Used to compute all the combinations of a set
 	private final Combinations<Point2D_F64> combinator = new Combinations<>();
@@ -111,7 +117,7 @@ public class LlahOperations {
 		this.hasher = hasher;
 
 		angles = new double[numberOfNeighborsN];
-		allFeatures = new DogArray<>(() -> new LlahFeature(numberOfInvariants));
+		allFeatures = new DogArray<>(() -> new LlahFeature(numberOfInvariants), LlahFeature::reset);
 	}
 
 	/**
@@ -121,6 +127,24 @@ public class LlahOperations {
 		documents.reset();
 		allFeatures.reset();
 		hashTable.reset();
+		featureCounts.reset();
+	}
+
+	/**
+	 * Removes all documents from the documents list which have an index equal to or greater than
+	 * the provided
+	 *
+	 * @param index0 first index to remove
+	 */
+	public void removeDocumentsStartingAt( int index0 ) {
+		for (int indexDoc = documents.size - 1; indexDoc >= index0; indexDoc--) {
+			LlahDocument d = documents.removeTail();
+			for (int indexFeat = 0; indexFeat < d.features.size(); indexFeat++) {
+				checkTrue(hashTable.remove(d.features.get(indexFeat)));
+			}
+			// This effectively removes all the features after this point, which were added by this document
+			allFeatures.size = featureCounts.get(indexDoc);
+		}
 	}
 
 	/**
@@ -176,11 +200,13 @@ public class LlahOperations {
 		checkListSize(locations2D);
 
 		LlahDocument doc = documents.grow();
-		doc.reset();
 		doc.documentID = documents.size() - 1;
 
 		// copy the points
 		doc.landmarks.copyAll(locations2D, ( src, dst ) -> dst.setTo(src));
+
+		// Record how many features there were before this document was added
+		featureCounts.add(allFeatures.size);
 
 		computeAllFeatures(locations2D, ( idx, l ) -> createProcessor(doc, idx));
 
@@ -198,7 +224,6 @@ public class LlahOperations {
 	private void createProcessor( LlahDocument doc, int idx ) {
 		// Given this set compute the feature
 		LlahFeature feature = allFeatures.grow();
-		feature.reset();
 		hasher.computeHash(permuteM, feature);
 
 		// save the results

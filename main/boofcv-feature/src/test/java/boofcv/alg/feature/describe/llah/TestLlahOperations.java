@@ -56,8 +56,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 	 * See if it can look up documents when given perfect information. Then it should fail when given documents
 	 * not in the list.
 	 */
-	@Test
-	void simple_test_everything() {
+	@Test void simple_test_everything() {
 		simple_test_everything(LlahInvariant.AFFINE);
 		simple_test_everything(LlahInvariant.CROSS_RATIO);
 	}
@@ -136,8 +135,11 @@ class TestLlahOperations extends BoofStandardJUnit {
 		}
 	}
 
-	@Test
-	void learnHashing() {
+	@Test void removeDocumentsAfter() {
+		fail("Implement");
+	}
+	
+	@Test void learnHashing() {
 		LlahOperations llahOps = createLlahOps(LlahInvariant.AFFINE);
 
 		int numDiscrete = 30;
@@ -170,8 +172,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 	 * Sees if all the neighbors are found for the specified point. The specified point should not be
 	 * included in the neighbor list
 	 */
-	@Test
-	void findNeighbors() {
+	@Test void findNeighbors() {
 		LlahOperations llahOps = createLlahOps(LlahInvariant.AFFINE);
 
 		List<Point2D_F64> list = UtilPoint2D_F64.random(-1, 1, 20, rand);
@@ -193,8 +194,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 		}
 	}
 
-	@Test
-	void computeAllFeatures() {
+	@Test void computeAllFeatures() {
 		List<Point2D_F64> list = UtilPoint2D_F64.random(-1, 1, 20, rand);
 		long nCm = Combinations.computeTotalCombinations(neighborsN, comboM);
 		long expected = nCm * comboM; // cyclical permutations
@@ -210,8 +210,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 		assertEquals(nCm * comboM, llahOps.computeMaxUniqueHashPerPoint());
 	}
 
-	@Test
-	void checkListSize() {
+	@Test void checkListSize() {
 		LlahOperations llahOps = createLlahOps(LlahInvariant.AFFINE);
 
 		// Requires N neighbors + 1
@@ -233,8 +232,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 	/**
 	 * Rotating the points should not affect the results.
 	 */
-	@Test
-	void invariantToRotation() {
+	@Test void invariantToRotation() {
 		for (var invariant : LlahInvariant.values()) {
 			invariantToRotation(createLlahOps(invariant));
 		}
@@ -275,8 +273,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 	/**
 	 * The input can be shuffled and it won't change the results
 	 */
-	@Test
-	void invariantToOrder() {
+	@Test void invariantToOrder() {
 		for (var invariant : LlahInvariant.values()) {
 			invariantToOrder(createLlahOps(invariant));
 		}
@@ -310,8 +307,7 @@ class TestLlahOperations extends BoofStandardJUnit {
 		}
 	}
 
-	@Test
-	void invariantToNoise() {
+	@Test void invariantToNoise() {
 		for (var invariant : LlahInvariant.values()) {
 			invariantToNoise(createLlahOps(invariant));
 		}

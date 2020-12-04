@@ -54,8 +54,7 @@ class TestUchiya_to_FiducialDetector extends GenericFiducialTrackerChecks {
 		}
 	}
 
-	@Override
-	public <T extends ImageBase<T>>
+	@Override public <T extends ImageBase<T>>
 	FiducialDetector<T> createDetector(ImageType<T> imageType)
 	{
 		var config = new ConfigUchiyaMarker();
@@ -71,8 +70,7 @@ class TestUchiya_to_FiducialDetector extends GenericFiducialTrackerChecks {
 		return detector;
 	}
 
-	@Override
-	public GrayF32 renderFiducial() {
+	@Override public GrayF32 renderFiducial() {
 		int target = 3;
 
 		var generator = new RandomDotMarkerGeneratorImage();
