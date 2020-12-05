@@ -19,6 +19,11 @@
 package boofcv.alg.feature.describe.llah;
 
 import georegression.struct.point.Point2D_F64;
+import gnu.trove.impl.Constants;
+import gnu.trove.map.TIntIntMap;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.hash.TIntIntHashMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import org.ddogleg.struct.DogArray;
 
 import java.util.ArrayList;
@@ -45,7 +50,10 @@ public class LlahDocument {
 	 */
 	public List<LlahFeature> features = new ArrayList<>();
 
-	public void addFeature( double x, double y ) {
+	/** Used to look up document features based on their hash code */
+	public final TIntIntMap hashToFeatureIdx = new TIntIntHashMap(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR,-1,-1);
+
+	public void addLandmark( double x, double y ) {
 		landmarks.grow().setTo(x, y);
 	}
 
@@ -53,5 +61,6 @@ public class LlahDocument {
 		documentID = -1;
 		landmarks.reset();
 		features.clear();
+		hashToFeatureIdx.clear();
 	}
 }

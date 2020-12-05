@@ -20,6 +20,7 @@ package boofcv.abst.fiducial;
 
 import boofcv.alg.feature.describe.llah.LlahDocument;
 import boofcv.alg.feature.describe.llah.LlahOperations;
+import boofcv.alg.feature.describe.llah.UchiyaOperations;
 import boofcv.alg.fiducial.dots.UchiyaMarkerImageTracker;
 import boofcv.alg.fiducial.dots.UchiyaMarkerTracker;
 import boofcv.struct.geo.Point2D3D;
@@ -206,7 +207,7 @@ implements FiducialTracker<T>
 		return getLlahOperations().createDocument(locations2D);
 	}
 
-	public LlahOperations getLlahOperations() {
+	public UchiyaOperations getLlahOperations() {
 		return tracker.getTracker().getLlahOps();
 	}
 

@@ -22,6 +22,7 @@ import boofcv.abst.fiducial.Uchiya_to_FiducialDetector;
 import boofcv.abst.filter.binary.BinaryContourInterface;
 import boofcv.alg.distort.LensDistortionNarrowFOV;
 import boofcv.alg.feature.describe.llah.LlahOperations;
+import boofcv.alg.feature.describe.llah.UchiyaOperations;
 import boofcv.alg.filter.binary.BinaryImageOps;
 import boofcv.alg.filter.binary.Contour;
 import boofcv.alg.shapes.ellipse.BinaryEllipseDetectorPixel;
@@ -112,7 +113,7 @@ public class DetectUchiyaMarkerApp<T extends ImageGray<T>>
 		config.markerWidth = definition.markerWidth;
 		config.markerHeight = definition.markerHeight;
 		// Avoid recomputing the LLAH dictionary if possible
-		LlahOperations before = tracker != null ? tracker.getLlahOperations() : null;
+		UchiyaOperations before = tracker != null ? tracker.getLlahOperations() : null;
 
 		var tracker = FactoryFiducial.randomDots(config, imageClass);
 		tracker.setPrintTiming(System.out);

@@ -21,6 +21,7 @@ package boofcv.alg.fiducial.dots;
 import boofcv.alg.feature.describe.llah.LlahDocument;
 import boofcv.alg.feature.describe.llah.LlahHasher;
 import boofcv.alg.feature.describe.llah.LlahOperations;
+import boofcv.alg.feature.describe.llah.UchiyaOperations;
 import boofcv.factory.geo.ConfigRansac;
 import boofcv.factory.geo.FactoryMultiViewRobust;
 import boofcv.struct.geo.AssociatedPair;
@@ -172,7 +173,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		var document = new LlahDocument();
 		document.landmarks.copyAll(landmarks,(src,dst)->dst.setTo(src));
 
-		var observed = new LlahOperations.FoundDocument();
+		var observed = new UchiyaOperations.FoundDocument();
 		observed.init(document);
 
 
@@ -192,7 +193,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 	}
 
 	public static UchiyaMarkerTracker createTracker() {
-		var ops = new LlahOperations(7,5,new LlahHasher.Affine(100,500000));
+		var ops = new UchiyaOperations(7,5,new LlahHasher.Affine(100,500000));
 		Ransac<Homography2D_F64, AssociatedPair> ransac =
 				FactoryMultiViewRobust.homographyRansac(null,new ConfigRansac(100,1.0));
 		return new UchiyaMarkerTracker(ops,ransac);

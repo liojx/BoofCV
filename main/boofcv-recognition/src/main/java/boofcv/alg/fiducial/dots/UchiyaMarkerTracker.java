@@ -22,6 +22,7 @@ import boofcv.abst.geo.Estimate1ofEpipolar;
 import boofcv.abst.geo.RefineEpipolar;
 import boofcv.alg.feature.describe.llah.LlahDocument;
 import boofcv.alg.feature.describe.llah.LlahOperations;
+import boofcv.alg.feature.describe.llah.UchiyaOperations;
 import boofcv.factory.geo.EpipolarError;
 import boofcv.factory.geo.FactoryMultiView;
 import boofcv.struct.geo.AssociatedPair;
@@ -63,7 +64,7 @@ import java.util.List;
 public class UchiyaMarkerTracker {
 
 	// Stores the "global" dictionary of documents
-	@Getter @Setter LlahOperations llahOps;
+	@Getter @Setter UchiyaOperations llahOps;
 
 	/** Threshold used to filter false positives documents. At least this many landmarks need to be seen. */
 	@Getter @Setter int minLandmarkDoc = 8;
@@ -76,7 +77,7 @@ public class UchiyaMarkerTracker {
 	private @Getter @Setter PrintStream verbose = null;
 
 	// Storage for documents which have been lookd up
-	List<LlahOperations.FoundDocument> foundDocs = new ArrayList<>();
+	List<UchiyaOperations.FoundDocument> foundDocs = new ArrayList<>();
 
 	// List of tracks which were visible in the most recent frame
 	@Getter DogArray<Track> currentTracks = new DogArray<>(Track::new);
@@ -85,7 +86,7 @@ public class UchiyaMarkerTracker {
 	// Lookup table from track ID to global ID
 	TIntIntHashMap trackId_to_globalId = new TIntIntHashMap();
 	// LLAH dictionary for tracks in the previous frame
-	LlahOperations llahTrackingOps;
+	UchiyaOperations llahTrackingOps;
 
 	// Internal profiling
 	/** Time to track objects */
@@ -112,12 +113,12 @@ public class UchiyaMarkerTracker {
 	/**
 	 * Configures the tracker
 	 */
-	public UchiyaMarkerTracker( LlahOperations llahOps,
+	public UchiyaMarkerTracker( UchiyaOperations llahOps,
 								Ransac<Homography2D_F64, AssociatedPair> ransac ) {
 		this.llahOps = llahOps;
 		this.ransac = ransac;
 
-		llahTrackingOps = new LlahOperations(llahOps.getNumberOfNeighborsN(), llahOps.getSizeOfCombinationM(), llahOps.getHasher());
+		llahTrackingOps = new UchiyaOperations(llahOps.getNumberOfNeighborsN(), llahOps.getSizeOfCombinationM(), llahOps.getHasher());
 	}
 
 	/**
@@ -162,7 +163,7 @@ public class UchiyaMarkerTracker {
 
 		// save the observations
 		for (int i = 0; i < foundDocs.size(); i++) {
-			LlahOperations.FoundDocument foundTrackDoc = foundDocs.get(i);
+			UchiyaOperations.FoundDocument foundTrackDoc = foundDocs.get(i);
 			Track track = currentTracks.grow();
 			track.reset();
 			if (fitHomographAndPredict(detectedDots, foundTrackDoc, track)) {
@@ -187,7 +188,7 @@ public class UchiyaMarkerTracker {
 
 		// save the observations, but ignore previously detected markers
 		for (int i = 0; i < foundDocs.size(); i++) {
-			LlahOperations.FoundDocument foundDoc = foundDocs.get(i);
+			UchiyaOperations.FoundDocument foundDoc = foundDocs.get(i);
 			if (globalId_to_track.containsKey(foundDoc.document.documentID))
 				continue;
 
@@ -229,7 +230,7 @@ public class UchiyaMarkerTracker {
 	 * @return true is successful
 	 */
 	private boolean fitHomographAndPredict( List<Point2D_F64> detectedDots,
-											LlahOperations.FoundDocument doc,
+											UchiyaOperations.FoundDocument doc,
 											Track track ) {
 		// Fit a homography to points
 		if (!fitHomography(detectedDots, doc))
@@ -272,7 +273,7 @@ public class UchiyaMarkerTracker {
 	 * @param observed The matched document
 	 * @return true if successful
 	 */
-	boolean fitHomography( List<Point2D_F64> dots, LlahOperations.FoundDocument observed ) {
+	boolean fitHomography( List<Point2D_F64> dots, UchiyaOperations.FoundDocument observed ) {
 		// create the ransac pairs
 		ransacPairs.reset();
 		ransacDotIdx.reset();

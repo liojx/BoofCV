@@ -23,6 +23,7 @@ import boofcv.abst.fiducial.calib.*;
 import boofcv.abst.filter.binary.InputToBinary;
 import boofcv.alg.feature.describe.llah.LlahHasher;
 import boofcv.alg.feature.describe.llah.LlahOperations;
+import boofcv.alg.feature.describe.llah.UchiyaOperations;
 import boofcv.alg.fiducial.dots.UchiyaMarkerImageTracker;
 import boofcv.alg.fiducial.dots.UchiyaMarkerTracker;
 import boofcv.alg.fiducial.qrcode.QrCodePositionPatternDetector;
@@ -253,7 +254,7 @@ public class FactoryFiducial {
 			default: throw new IllegalArgumentException("Unknown hash type "+config.llah.hashType);
 		}
 
-		LlahOperations ops = new LlahOperations(config.llah.numberOfNeighborsN, config.llah.sizeOfCombinationM,hasher);
+		var ops = new UchiyaOperations(config.llah.numberOfNeighborsN, config.llah.sizeOfCombinationM,hasher);
 		Ransac<Homography2D_F64, AssociatedPair> ransac =
 				FactoryMultiViewRobust.homographyRansac(new ConfigHomography(false), config.ransac);
 		UchiyaMarkerTracker uchiya = new UchiyaMarkerTracker(ops,ransac);

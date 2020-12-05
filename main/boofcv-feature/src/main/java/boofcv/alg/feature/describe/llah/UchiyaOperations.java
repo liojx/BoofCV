@@ -21,6 +21,7 @@ package boofcv.alg.feature.describe.llah;
 import boofcv.struct.geo.PointIndex2D_F64;
 import georegression.helper.KdTreePoint2D_F64;
 import georegression.struct.point.Point2D_F64;
+import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import lombok.Getter;
 import org.ddogleg.combinatorics.Combinations;
@@ -36,29 +37,14 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * Locally Likely Arrangement Hashing (LLAH) [1] computes a descriptor for a landmark based on the local geometry of
- * neighboring landmarks on the image plane. Originally proposed for document retrieval. These features are either
- * invariant to perspective or affine transforms.
- *
- * <p>Works by sampling the N neighbors around a point. These ports are sorted in clockwise order. However,
- * it is not known which points should be first so all cyclical permutations of set-N are now found.
- * It is assumed that at least M points in set M are a member
- * of the set used to compute the feature, so all M combinations of points in set-N are found. Then the geometric
- * invariants are computed using set-M.</p>
- *
- * <p>When describing the documents the hash and invariant values of each point in a document is saved. When
- * looking up documents these features are again computed for all points in view, but then the document
- * type is voted upon and returned.</p>
- *
- * <ol>
- *     <li>Nakai, Tomohiro, Koichi Kise, and Masakazu Iwamura.
- *     "Use of affine invariants in locally likely arrangement hashing for camera-based document image retrieval."
- *     International Workshop on Document Analysis Systems. Springer, Berlin, Heidelberg, 2006.</li>
- * </ol>
+ * LLAH based operation specialized for looking up Uchiya markers. While Uchiya markers are firmly based on the
+ * theory, the specifics are a specialization which allows for faster algorithms. For example, features in a Uchiya
+ * marker get their descriptive powers from the hashcode alone (not the invariants) and instead of a linked
+ * list when looking up a document you can have an array with the number of counts.
  *
  * @author Peter Abeles
  */
-public class LlahOperations {
+public class UchiyaOperations {
 
 	// Number of nearest neighbors it will search for
 	@Getter final int numberOfNeighborsN;
@@ -73,7 +59,7 @@ public class LlahOperations {
 	// Computes the hash value for each feature
 	@Getter LlahHasher hasher;
 	// Used to look up features/documents
-	@Getter final LlahHashTable hashTable = new LlahHashTable();
+	@Getter final UchiyaHashTable hashTable = new UchiyaHashTable();
 
 	// List of all documents
 	@Getter final DogArray<LlahDocument> documents = new DogArray<>(LlahDocument::new);
@@ -103,8 +89,8 @@ public class LlahOperations {
 	 * @param sizeOfCombinationM Number of different combinations within the neighbors
 	 * @param hasher Computes the hash code
 	 */
-	public LlahOperations( int numberOfNeighborsN, int sizeOfCombinationM,
-						   LlahHasher hasher ) {
+	public UchiyaOperations( int numberOfNeighborsN, int sizeOfCombinationM,
+							 LlahHasher hasher ) {
 		this.numberOfNeighborsN = numberOfNeighborsN;
 		this.sizeOfCombinationM = sizeOfCombinationM;
 		this.numberOfInvariants = hasher.getNumberOfInvariants(sizeOfCombinationM);
@@ -204,6 +190,7 @@ public class LlahOperations {
 		// save the results
 		feature.landmarkID = idx;
 		feature.documentID = doc.documentID;
+		doc.hashToFeatureIdx.put(feature.hashCode, doc.features.size());
 		doc.features.add(feature);
 		hashTable.add(feature);
 	}
@@ -304,28 +291,62 @@ public class LlahOperations {
 		computeAllFeatures(dots, ( dotIdx, pointSet ) ->
 				lookupProcessor(pointSet, dotIdx, featureComputed, votingBooths));
 
+		DogArray_I32 landmarkVotes = new DogArray_I32();
+
 		for (int dotIdx = 0; dotIdx < dots.size(); dotIdx++) {
 			DotVotingBooth booth = votingBooths.get(dotIdx);
-			if (booth.votes.size == 0)
+			if (booth.votes.size == 0) {
+//				System.out.println("No document for dot="+dotIdx);
 				continue;
-			DotToLandmark best = booth.votes.get(0);
+			}
+
+			//-----------------------------------------------------------------------
+			// See which document won the votes
+			DotToDocument best = booth.votes.get(0);
 			for (int i = 1; i < booth.votes.size; i++) {
-				DotToLandmark b = booth.votes.get(i);
+				DotToDocument b = booth.votes.get(i);
 				if (b.count > best.count) {
 					best = b;
 				}
 			}
 
-			FoundDocument doc = foundMap.get(best.documentID);
-			if (doc == null) {
-				doc = resultsStorage.grow();
-				doc.init(documents.get(best.documentID));
-				foundMap.put(best.documentID, doc);
+			//-----------------------------------------------------------------------
+			// Select which feature on the document this point belongs to by voting
+			LlahDocument doc = documents.get(best.documentID);
+			landmarkVotes.resize(doc.landmarks.size(), 0);
+			for (int hashIdx = 0; hashIdx < booth.hashes.size; hashIdx++) {
+				int hash = booth.hashes.get(hashIdx);
+				int featureIdx = doc.hashToFeatureIdx.get(hash);
+				// see if a match was found
+				if (featureIdx==-1)
+					continue;
+				int landmarkId = doc.features.get(featureIdx).landmarkID;
+				landmarkVotes.data[landmarkId]++;
 			}
 
-			if (doc.landmarkHits.get(best.landmarkID) < best.count) {
-				doc.landmarkHits.set(best.landmarkID, best.count);
-				doc.landmarkToDots.set(best.landmarkID, dotIdx);
+			int bestVotes = 0;
+			int bestLandmark = -1;
+			for (int i = 0; i < landmarkVotes.size; i++) {
+				int v = landmarkVotes.get(i);
+				if (bestVotes < v) {
+					bestVotes = v;
+					bestLandmark = i;
+				}
+			}
+
+			if (bestLandmark==-1)
+				continue;
+
+			FoundDocument foundDoc = foundMap.get(best.documentID);
+			if (foundDoc == null) {
+				foundDoc = resultsStorage.grow();
+				foundDoc.init(documents.get(best.documentID));
+				foundMap.put(best.documentID, foundDoc);
+			}
+
+			if (foundDoc.landmarkHits.get(bestLandmark) < bestVotes) {
+				foundDoc.landmarkHits.set(bestLandmark, bestVotes);
+				foundDoc.landmarkToDots.set(bestLandmark, dotIdx);
 			}
 		}
 
@@ -357,7 +378,7 @@ public class LlahOperations {
 	}
 
 	/**
-	 * Computes the feature for the set of points and see if they match anything in the dictionary. If they do vote.
+	 * Accumulates votes for which document this point belongs to.
 	 */
 	private void lookupProcessor( List<Point2D_F64> pointSet, int dotIdx, LlahFeature featureComputed,
 								  DogArray<DotVotingBooth> votingBooths ) {
@@ -366,16 +387,23 @@ public class LlahOperations {
 		// Compute the feature for this set
 		hasher.computeHash(pointSet, featureComputed);
 
-		// Find the set of features which match this has code
-		LlahFeature foundFeat = hashTable.lookup(featureComputed.hashCode);
-		while (foundFeat != null) {
-			// Condition 1: See if the invariant's match
-			if (featureComputed.doInvariantsMatch(foundFeat)) {
-				DotToLandmark vote = booth.lookup(foundFeat.documentID, foundFeat.landmarkID);
-				vote.count += 1;
-			}
+		// Save the hash for later use when trying to decide which feature in the document
+		booth.hashes.add(featureComputed.hashCode);
 
-			foundFeat = foundFeat.next;
+		// Find the set of features which match this has code
+		UchiyaHashTable.HashDocuments foundDocs = hashTable.lookup(featureComputed.hashCode);
+		if (foundDocs == null) {
+			return;
+		}
+
+		final DogArray<UchiyaHashTable.DocumentHits> votes = foundDocs.votes;
+
+		for (int i = 0; i < votes.size; i++) {
+			UchiyaHashTable.DocumentHits d = votes.get(i);
+			DotToDocument vote = booth.lookup(d.documentID);
+			vote.count += d.total;
+			if (d.total <= 0)
+				throw new RuntimeException("BUG!");
 		}
 	}
 
@@ -387,33 +415,34 @@ public class LlahOperations {
 	}
 
 	public static class DotVotingBooth {
-		final DogArray<DotToLandmark> votes = new DogArray<>(DotToLandmark::new);
-		final TIntObjectHashMap<TIntObjectHashMap<DotToLandmark>> map = new TIntObjectHashMap<>();
+		final DogArray<DotToDocument> votes = new DogArray<>(DotToDocument::new);
+		final TIntObjectMap<DotToDocument> map = new TIntObjectHashMap<>();
+		final DogArray_I32 hashes = new DogArray_I32();
 
 		public void reset() {
 			votes.reset();
 			map.clear();
+			hashes.reset();
 		}
 
-		public DotToLandmark lookup( int documentID, int landmarkID ) {
-			TIntObjectHashMap<DotToLandmark> voteDoc = map.get(documentID);
+		public DotToDocument lookup( int documentID ) {
+			DotToDocument voteDoc = map.get(documentID);
 
 			if (voteDoc == null) {
-				voteDoc = new TIntObjectHashMap<>();
+				voteDoc = votes.grow();
+				voteDoc.count = 0;
+				voteDoc.documentID = documentID;
 				map.put(documentID, voteDoc);
 			}
 
-			DotToLandmark vote = voteDoc.get(landmarkID);
-			if (vote == null) {
-				vote = votes.grow();
-				vote.documentID = documentID;
-				vote.landmarkID = landmarkID;
-				vote.count = 0;
-				voteDoc.put(landmarkID, vote);
-			}
-
-			return vote;
+			return voteDoc;
 		}
+	}
+
+
+	public static class DotToDocument {
+		public int documentID;
+		public int count;
 	}
 
 	public static class DotToLandmark {
