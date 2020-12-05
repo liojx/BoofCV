@@ -101,7 +101,7 @@ class TestUchiyaMarkerImageTracker extends BoofStandardJUnit {
 			assertEquals(1,found.size);
 
 			UchiyaMarkerTracker.Track track = found.get(0);
-			assertEquals(targetID,track.globalDoc.documentID);
+			assertEquals(targetID,track.originalDoc.documentID);
 
 			// Check extracted points to see if they are at the expected location
 			compareDots(centers, track.predicted.toList(), angle, rotated.width, rotated.height, 2.0);

@@ -124,7 +124,7 @@ public class Uchiya_to_FiducialDetector<T extends ImageGray<T>> extends Fiducial
 	@Override
 	public long getId( int which ) {
 		UchiyaMarkerTracker.Track track = tracker.getTracks().get(which);
-		return track.globalDoc.documentID;
+		return track.originalDoc.documentID;
 	}
 
 	@Override
@@ -160,7 +160,7 @@ public class Uchiya_to_FiducialDetector<T extends ImageGray<T>> extends Fiducial
 
 		for (int dotIdx = 0; dotIdx < track.observed.size; dotIdx++) {
 			PointIndex2D_F64 dot = track.observed.get(dotIdx);
-			Point2D_F64 landmark = track.globalDoc.landmarks.get(dot.index);
+			Point2D_F64 landmark = track.originalDoc.landmarks.get(dot.index);
 			pixelToNorm.compute(dot.p.x, dot.p.y, norm);
 			control3D.grow().setTo(norm.x, norm.y, landmark.x, -landmark.y, 0);
 		}

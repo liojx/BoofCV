@@ -42,7 +42,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author Peter Abeles
@@ -72,7 +73,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 		DogArray<UchiyaMarkerTracker.Track> tracks = tracker.getCurrentTracks();
 		assertEquals(1,tracks.size);
 		UchiyaMarkerTracker.Track t = tracks.get(0);
-		assertEquals(targetID, t.globalDoc.documentID);
+		assertEquals(targetID, t.originalDoc.documentID);
 	}
 
 	/**
@@ -104,7 +105,7 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 			DogArray<UchiyaMarkerTracker.Track> tracks = tracker.getCurrentTracks();
 			assertEquals(1,tracks.size);
 			UchiyaMarkerTracker.Track t = tracks.get(0);
-			assertEquals(targetID, t.globalDoc.documentID);
+			assertEquals(targetID, t.originalDoc.documentID);
 
 			// Make sure the track is moving in the expected way
 			UtilPoint2D_F64.mean(t.predicted.toList(),currMean);
@@ -139,8 +140,8 @@ class TestUchiyaMarkerTracker extends BoofStandardJUnit {
 
 		// check to see if the predicted landmark locations are correct
 		for( var track : tracker.currentTracks.toList() ) {
-			List<Point2D_F64> docObs = documents.get(track.globalDoc.documentID);
-			double offset = track.globalDoc.documentID*500;
+			List<Point2D_F64> docObs = documents.get(track.originalDoc.documentID);
+			double offset = track.originalDoc.documentID*500;
 
 			for (int i = 0; i < track.predicted.size; i++) {
 				double expectedX = docObs.get(i).x + offset;

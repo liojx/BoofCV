@@ -30,6 +30,7 @@ import georegression.struct.homography.Homography2D_F64;
 import georegression.struct.homography.UtilHomography_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.transform.homography.HomographyPointOps_F64;
+import gnu.trove.impl.Constants;
 import gnu.trove.map.TIntIntMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import lombok.Getter;
@@ -37,11 +38,14 @@ import lombok.Setter;
 import org.ddogleg.fitting.modelset.ransac.Ransac;
 import org.ddogleg.struct.DogArray;
 import org.ddogleg.struct.DogArray_I32;
+import org.ddogleg.struct.VerbosePrint;
 import org.ejml.data.DMatrixRMaj;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static boofcv.misc.BoofMiscOps.checkTrue;
 
@@ -62,7 +66,7 @@ import static boofcv.misc.BoofMiscOps.checkTrue;
  *
  * <p>[1] Uchiyama, Hideaki, and Hideo Saito. "Random dot markers." 2011 IEEE Virtual Reality Conference. IEEE, 2011.</p>
  */
-public class UchiyaMarkerTracker {
+public class UchiyaMarkerTracker implements VerbosePrint {
 
 	// Stores the "global" dictionary of documents
 	@Getter @Setter LlahOperations llahOps;
@@ -95,7 +99,8 @@ public class UchiyaMarkerTracker {
 	// Number of documents originally in LLAH. Used to split those documents from new tracks.
 	int totalOriginalDocuments;
 	// A "set" of original documents which have already been found by the tracker
-	TIntIntMap trackedOriginalDocs = new TIntIntHashMap();
+	// Set the no-entry value to -1
+	TIntIntMap originalToFound = new TIntIntHashMap(100, Constants.DEFAULT_LOAD_FACTOR, -1,-1);
 
 	// Estimate the homography with noise
 	Ransac<Homography2D_F64, AssociatedPair> ransac;
@@ -119,8 +124,6 @@ public class UchiyaMarkerTracker {
 		this.llahOps = llahOps;
 		this.ransac = ransac;
 		updatedLlahDocuments();
-
-		verbose = System.out;
 	}
 
 	/**
@@ -148,10 +151,6 @@ public class UchiyaMarkerTracker {
 	public void process( List<Point2D_F64> detectedDots ) {
 		checkTrue(totalOriginalDocuments>0,
 				"Must call updatedLlahDocuments() after initially LLAH with documents.");
-		// Reset the tracker
-		currentTracks.reset();
-		trackedOriginalDocs.clear();
-
 		double nano0 = System.nanoTime();
 		performTracking(detectedDots);
 		double nano1 = System.nanoTime();
@@ -161,56 +160,86 @@ public class UchiyaMarkerTracker {
 		this.timeTrack = (nano1 - nano0)*1e-6;
 		this.timeUpdate = (nano2 - nano1)*1e-6;
 
-		System.out.println("Total documents: "+llahOps.getDocuments().size);
+		if (verbose!=null) verbose.println("Total documents.size="+llahOps.getDocuments().size);
 	}
 
 	/**
 	 * Detects landmarks using their tracking definition.
 	 */
 	void performTracking( List<Point2D_F64> detectedDots ) {
+		// reset the tracker
+		currentTracks.reset();
+		originalToFound.clear();
+
 		// See if any previously tracked markers are visible
 		llahOps.lookupDocuments(detectedDots, minLandmarkDoc, foundDocs);
 
-		if (verbose!=null) verbose.println("foundDocs.size="+foundDocs.size());
+		if (verbose!=null) verbose.println("dots.size="+detectedDots.size()+" foundDocs.size="+foundDocs.size());
 
-		// save the observations
-		for (int i = 0; i < foundDocs.size(); i++) {
+		// There can only be one match for each original doc. Select the match with the lowest documentID
+		// This older and more reliable descriptions are preferred.
+		for (int i = 0; i < foundDocs.size(); i++){
 			LlahOperations.FoundDocument foundDoc = foundDocs.get(i);
 
-			// Make sure it's not tracking the same document twice!
-			if (trackedOriginalDocs.containsKey(foundDoc.document.documentID)) {
-				if (verbose!=null) verbose.println("Duplicate found="+foundDoc.document.documentID);
+			int originalID = getOriginalID(foundDoc.document.documentID);
+
+			int previousFoundIndex = originalToFound.get(originalID);
+			if (previousFoundIndex==-1) {
+				// there was no previous match
+				originalToFound.put(originalID,i);
 				continue;
 			}
 
-			// The document ID is it's index too
+			// prefer matches with older documents since they are closer to the original document and less chance
+			// for noise
+			int previousDocID = foundDocs.get(previousFoundIndex).document.documentID;
+			if (previousDocID < foundDoc.document.documentID) {
+				if (verbose!=null) verbose.println("Collision preferring. keeping="+previousDocID);
+				continue;
+			}
+			if (verbose!=null) verbose.println(
+					"Collision preferring. replacement="+foundDoc.document.documentID+" first match="+previousDocID);
+
+			originalToFound.put(originalID,i);
+		}
+
+		// For each found document that was successfully matched to an original document, create a track
+		originalToFound.forEachEntry((originalID,foundIndex)->{
+			LlahOperations.FoundDocument foundDoc = foundDocs.get(foundIndex);
 			final int documentID = foundDoc.document.documentID;
-			// See if it is one of the original documents or a new document spawned as a track
-			boolean isSpawned = documentID >= totalOriginalDocuments;
 
 			// Create a new track for this found document
 			Track track = currentTracks.grow();
 
-			// Note which of the original document this new track is tracking
-			if (isSpawned) {
-				final int globalID = document_to_original.get(documentID-totalOriginalDocuments);
-				track.globalDoc = llahOps.getDocuments().get(globalID);
+			// Set the reference to the original document for this track
+			if (documentID != originalID) {
+				track.originalDoc = llahOps.getDocuments().get(originalID);
 			} else {
-				track.globalDoc = foundDoc.document;
+				track.originalDoc = foundDoc.document;
 			}
 
 			// Figure out the transform from the original document to this one predict where all the dots
 			// would appear even if they were not seen
 			if (fitHomographAndPredict(detectedDots, foundDoc, track)) {
-				// Mark this document as tracked
-				trackedOriginalDocs.put(track.globalDoc.documentID,-1);
-				if (verbose != null) verbose.println(" tracked doc " + track.globalDoc.documentID);
+				if (verbose != null) verbose.println(" Track Created. original=" + originalID + " found="+documentID);
 			} else {
 				// Failed so recycle this data structure
 				currentTracks.removeTail();
 				if (verbose != null) verbose.println(" failed to fit homography while tracking");
 			}
-		}
+
+			return true;
+		});
+	}
+
+	/**
+	 * Given a document ID return the ID of the original document that it's derived from
+	 */
+	private int getOriginalID( int documentID ) {
+		if (documentID<totalOriginalDocuments)
+			return  documentID;
+
+		return document_to_original.get(documentID-totalOriginalDocuments);
 	}
 
 	/**
@@ -220,14 +249,21 @@ public class UchiyaMarkerTracker {
 		// Compute new definitions for all tracks
 		for (int trackIdx = 0; trackIdx < currentTracks.size; trackIdx++) {
 			Track track = currentTracks.get(trackIdx);
+			int originalID = track.originalDoc.documentID;
 
 			track.trackDoc = llahOps.createDocument(track.predicted.toList());
 			// copy global landmarks into track so that in the next iteration the homography will be correct
 			track.trackDoc.landmarks.reset();
-			track.trackDoc.landmarks.copyAll(track.globalDoc.landmarks.toList(), ( src, dst ) -> dst.setTo(src));
+			track.trackDoc.landmarks.copyAll(track.originalDoc.landmarks.toList(), ( src, dst ) -> dst.setTo(src));
 
 			// Save a reference to which document this one was spawned from
-			document_to_original.add(track.globalDoc.documentID);
+			document_to_original.add(originalID);
+
+			if (document_to_original.get(track.trackDoc.documentID-totalOriginalDocuments) != originalID)
+				throw new RuntimeException("BUG!");
+
+			if (verbose != null)
+				verbose.println(" Doc Created: original="+originalID+" created="+track.trackDoc.documentID);
 		}
 	}
 
@@ -305,6 +341,10 @@ public class UchiyaMarkerTracker {
 		return false;
 	}
 
+	@Override public void setVerbose( @Nullable PrintStream out, @Nullable Set<String> configuration ) {
+		this.verbose = out;
+	}
+
 	/**
 	 * Contains information on a marker that's being tracked
 	 */
@@ -312,7 +352,7 @@ public class UchiyaMarkerTracker {
 		/** Reference to Tracking document */
 		public LlahDocument trackDoc;
 		/** Reference to the global document */
-		public LlahDocument globalDoc;
+		public LlahDocument originalDoc;
 		/** Found homography from landmark to image pixels */
 		public final Homography2D_F64 doc_to_imagePixel = new Homography2D_F64();
 		/** Pixel location of each landmark predicted using the homography */
@@ -323,7 +363,7 @@ public class UchiyaMarkerTracker {
 		/** Resets to initial state */
 		public void reset() {
 			trackDoc = null;
-			globalDoc = null;
+			originalDoc = null;
 			predicted.reset();
 			observed.reset();
 			doc_to_imagePixel.reset();
