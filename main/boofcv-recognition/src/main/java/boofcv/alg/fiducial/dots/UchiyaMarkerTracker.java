@@ -79,7 +79,7 @@ public class UchiyaMarkerTracker implements VerbosePrint {
 	@Getter @Setter boolean tracking = true;
 
 	/** Print tracking and debugging messages */
-	private @Getter @Setter PrintStream verbose = null;
+	private PrintStream verbose = null;
 
 	// Storage for documents which have been looked up
 	List<LlahOperations.FoundDocument> foundDocs = new ArrayList<>();
@@ -246,6 +246,10 @@ public class UchiyaMarkerTracker implements VerbosePrint {
 	 * Updates the track descriptions based on the most recent predicted observations
 	 */
 	private void setTrackDescriptionsAndID() {
+		// forget the previously spawned tracks
+		llahOps.removeDocumentsStartingAt(totalOriginalDocuments);
+		document_to_original.reset();
+
 		// Compute new definitions for all tracks
 		for (int trackIdx = 0; trackIdx < currentTracks.size; trackIdx++) {
 			Track track = currentTracks.get(trackIdx);

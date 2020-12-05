@@ -116,7 +116,7 @@ public class DetectUchiyaMarkerApp<T extends ImageGray<T>>
 
 		var tracker = FactoryFiducial.randomDots(config, imageClass);
 		tracker.setPrintTiming(System.out);
-//		tracker.getTracker().getTracker().setVerbose(System.out);
+		tracker.getTracker().getTracker().setVerbose(System.out, null);
 
 		if (intrinsic != null) {
 			LensDistortionNarrowFOV lens = LensDistortionFactory.narrow(intrinsic);
